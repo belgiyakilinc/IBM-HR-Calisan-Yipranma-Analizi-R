@@ -1,0 +1,445 @@
+---
+title: "IBM-HR-Calisan-Yipranma-Analizi-R"
+output: html_document
+
+---
+
+# Çalışanların Yıpranması
+
+### Belgiya Kılınç
+
+## 1. Veri Tanımı ve Amaçlar
+
+Bu veriseti, çalışanların yıpranmasıyla ilgili çeşitli bilgiler içerir. IBM İnsan Kaynakları tarafından çalışanlara memnuniyet anketi sonucunda toplanmıştır. Veri seti, çalışanların yıpranma seviyelerini, yıpranmaya katkıda bulunan faktörleri ve yıpranmanın işyeri üzerindeki etkisini anlamak amacıyla kullanılacaktır.
+
+Veri kümesi 14710 gözlem ve 8 değişkenden oluşmaktadır. Veri kümesindeki her satır bir çalışanı temsil eder; her sütun çalışan özelliklerini içerir:
+
+> Yaş: Numerik
+
+> Yıpranma: Evet ve Hayır
+
+> Departman: Satış, İnsan Kaynakları, Araştırma ve Geliştirme
+
+> Eve Uzaklık: Numerik(Dakika)
+
+> Eğitim: Numerik (1= Lise Mezunu, 2= Ön Lisans, 3= Lisans, 4= Yüksek Lisans, 5= Doktora)
+
+> Eğitim Dalı: Yaşam Bilimleri, Sağlık, Pazarlama, Teknik, İnsan Kaynakları, Diğer
+
+> Çevre Memnuniyeti: (Numerik) (1= Düşük, 2= Orta, 3= Yüksek, 4= Çok Yüksek)
+
+> İş Memnuniyeti: (Numerik) (1= Düşük, 2= Orta, 3= Yüksek, 4= Çok Yüksek)
+
+> Medeni Hal: Bekar, Evli, Boşanmış
+
+> Aylık Gelir(Numerik)
+
+> Çalışılan Şirket Sayısı(Numerik)
+
+> İş Yaşam Dengesi: (Numerik) (1= Düşük, 2= Orta, 3= Yüksek, 4= Çok Yüksek)
+
+> Şirkette Çalışılan Yıl(Numerik)
+
+Veri setine bu [bağlantıdan](https://www.kaggle.com/datasets/prachi13/employeeattritionrate/discussion?sort=hotness) ulaşabilirsiniz.
+
+## 2. Kütüphanelerin Yüklenmesi:
+
+```{r}
+
+library(readr)
+library('ggplot2') # visualization
+library('ggthemes') # visualization
+library('ggridges') # visualization
+library('ggExtra') # visualization
+library('GGally') # visualisation
+library('scales') # visualization
+library('grid') # visualisation
+library('gridExtra') # visualisation
+library('corrplot') # visualisation
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(funModeling)
+library(mice)
+library(tidyverse)
+library(psych)
+library(funModeling)
+library(d3Tree)
+library(magrittr)
+library(DataExplorer)
+library(maps)
+library(plotly)
+library(DT)
+library(tidytext)
+library(gridExtra)
+library(dplyr)
+library(factoextra)
+library(randomForest)
+library(corrplot)
+library(plyr)
+library(scales)
+library(readr)
+library(ggthemes)
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(funModeling)
+library(Hmisc)
+library(pls)
+library(elasticnet)
+library(broom)
+library(glmnet)
+library(MASS)
+library(ISLR)
+library(PerformanceAnalytics)
+library(Matrix)
+library(readxl)
+library(tidyverse)
+library(funModeling)
+library(magrittr)
+library(DataExplorer)
+library(maps)
+library(plotly)
+library(DT)
+library(tidytext)
+library(gridExtra)
+library(dplyr)
+library(naniar)
+library(factoextra)
+library(randomForest)
+library(corrplot)
+library(plyr)
+library(scales)
+library(readr)
+library(ggthemes)
+library(ggplot2)
+library(tidyselect)
+library(webr)
+
+
+
+```
+
+```{r}
+library(readr)
+veri <- read_delim("veri.csv", delim = ";", 
+    escape_double = FALSE, trim_ws = TRUE)
+View(veri)
+```
+
+
+#### Verinin Değişkenleri:
+
+```{r}
+colnames(veri)
+```
+
+```{r}
+veri %>% glimpse()
+```
+
+## Tanımlayıcı İstatistikler
+
+```{r}
+str(veri)
+```
+
+```{r}
+plot_num(veri)
+```
+
+
+```{r}
+GGally::ggpairs(veri[,1:7])
+```
+
+
+
+#### Verinin ortalaması, standart sapması, medyanı, minimum, maksimum, range, basıklık ve çarpıklık değerlerini tek bir tabloda görebiliriz.
+
+```{r}
+describe(veri)
+```
+
+#### sürekli değişkenlerin tümünün min,median,range gibi detaylı bilgileri data.frame olarak verir.
+
+```{r}
+library(pastecs)
+stat.desc(veri) 
+```
+
+#### Veri setinde boş veri yoktur.
+
+```{r}
+sum(is.na(veri))
+```
+
+
+
+
+
+## Keşifsel Veri Analizi
+
+#### Test-Train Ayırımı
+
+```{r}
+set.seed(1)
+trainIndex <- sample(1:nrow(veri), size = round(0.8*nrow(veri)), replace=FALSE)
+train <- veri[trainIndex ,]
+test <- veri[-trainIndex ,]
+
+train <- train %>% mutate(
+  Yipranma = factor(Yipranma),
+
+)
+```
+
+```{r}
+summary(train)
+```
+
+#### Sütunlardaki çeşitlere bakalım
+
+```{r}
+apply(train,2, function(x) length(unique(x)))
+```
+
+```{r}
+
+yuz <- prop.table(table(veri$Yipranma))
+pie(yuz, 
+    main = "Yıpranma",
+    labels = c("Hayır", "Evet"),
+    col = c("pink","cyan"),
+    )
+
+
+```
+
+
+#### Train verilerin nicel değişkenlerininn histogramları
+
+```{r}
+plot_num(train)
+
+```
+
+#### Test verilierini inceleyelim
+
+```{r}
+GGally::ggpairs(train[,1:6])
+```
+
+
+
+#### Yaş ve Yıpranma değişkenlerinin birlikte histogram grafiği
+
+```{r}
+
+ggplot(train, aes(Yas, fill = Yipranma)) + 
+  geom_histogram(bins=30) + 
+  theme_few() +
+  xlab("Yaş") +
+  scale_fill_discrete(name = "Yıpranma") + 
+  ggtitle("Yaş ve Yıpranma")
+```
+
+Yaş ilerledikçe yıpranmanın azaldığını görüyoruz.
+
+#### Departman ve Yıpranma değişkenlerinin birlikte histogram grafiği
+
+```{r}
+# Sex vs Survived
+ggplot(train, aes(Departman, fill = Yipranma)) + 
+  geom_bar(stat = "count", position = 'dodge')+
+  theme_few() +
+  xlab("Departman") +
+  ylab("Count") +
+  scale_fill_discrete(name = "Yıpranma") + 
+  ggtitle("Departman ve Yıpranma")
+```
+
+Departmanda çalışan kişi sayıları farklı olsa dahi, kişi sayısına bakarak oranladığımızda Araştırma ve Geliştirme departmanında daha fazla yıpranma mevcut.
+
+
+
+```{r}
+boxplot(EveUzaklik~Yipranma,data=veri, main="Ev ve iş yeri arası uzaklık", 
+        xlab="Yıpranma", ylab="KM", varwidth=TRUE, col = c( "#E69F00", "#56B4E9")) 
+      
+```
+
+İş yerine uzak oturan çalışanların iş memnumiyeti düşmektedir. 
+
+```{r}
+ggplot(train, aes(x = Yas, y = MedeniHal)) + 
+  geom_jitter(aes(colour = Yipranma )) + 
+  theme_few()+
+  theme(legend.title = element_blank())+
+  facet_wrap(~Departman) + 
+  labs(x = "Yas", y = "Departman", title = "Departman, Yaş, Medeni Hal ve Yıpranma ")+
+  scale_fill_discrete(name = "Yıpranma") + 
+  scale_x_continuous(name="Yaş",limits=c(0, 81))
+```
+
+Boşanmış kişiler diğer kişilere göre daha az yıpranmaya sahip. Kişilerin normal hayatında yaşadığı mutsuzluklarının işe yansıyıp yansımadığı araştırılmalıdır. 
+
+####  Çalışanların sosyal hayatını ve iş hayatını incelemek için bu iki grafiği inceleyelim.
+
+```{r}
+train %>%
+ggplot(aes(IsMemnuniyeti, fill=MedeniHal)) +
+geom_density(alpha = 0.5) +
+scale_x_log10() +
+facet_wrap(~ Yipranma, ncol = 1)
+```
+```{r}
+train %>%
+ggplot(aes(CevreMemnuniyeti, fill=MedeniHal)) +
+geom_density(alpha = 0.5) +
+scale_x_log10() +
+facet_wrap(~ Yipranma, ncol = 1)
+```
+
+Yıpranan kişilerin, iş memnuniyeti ve çevre memnuniyetinde en düşük olan kişiler çoğunlukla bekar kişiler.
+
+
+```{r}
+train %>%
+ggplot(aes(AylikGelir, fill=Departman)) +
+geom_density(alpha = 0.5) +
+scale_x_log10() +
+facet_wrap(~ Yipranma, ncol = 1)
+```
+
+Yıpranmaya sahip kişilerin daha düşük gelire sahip oldukları görülmektedir. Özellikle İnsan Kaynakları ve Araştırma ve Geliştirme Departmanlarında bir çok kişi aynı gelir sklasında. 
+
+## Model Kurma
+
+#### Target değişkeni olarak Yipranma’ı kullanarak Random Forest modeli kuracağım
+```{r}
+target_variable <- train$Yipranma
+```
+
+
+```{r}
+train_data <- train[, c("Yas", "EveUzaklik", "Egitim", "CevreMemnuniyeti", "IsMemnuniyeti", "AylikGelir", "CalisilanSirketSayisi","IsYasamDengesi")]
+```
+
+
+```{r}
+rf_model3 <- randomForest(x = train_data, y = target_variable, ntree = 100)
+```
+
+##Train Tahmin
+
+#### Modeli kurduktan sonra ilk olarak Train veri seti üzerinden tahmin yaptım.
+
+
+```{r}
+# Train veri seti üzerinde tahmin yapma
+train_predictions <- predict(rf_model3, newdata = train_data)
+
+# Confusion Matrix oluşturma
+confusion_matrix <- table(Actual = target_variable, Predicted = train_predictions)
+print(confusion_matrix)
+```
+
+
+```{r}
+# Doğruluk (Accuracy) hesaplama
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Accuracy:", accuracy))
+```
+
+Doğruluk 0,99 bulunmuştur.
+
+## Test Tahmini
+
+#### Kurduğum model ile test veri seti üzerinde de tahmin yapacağım. 
+
+
+
+```{r}
+test_data <- test[, c("Yas", "EveUzaklik", "Egitim", "CevreMemnuniyeti", "IsMemnuniyeti", "AylikGelir", "CalisilanSirketSayisi","IsYasamDengesi")]
+```
+
+
+```{r}
+test_predictions <- predict(rf_model3, newdata = test_data)
+
+```
+
+## Kurduğum model ile test verisi üzerinde yaptığım tahminler ve gerçek değerler karşılaştırılarak Confusion Matrix oluşturdum. Ve Accuracy’im 0.82'dir
+
+
+```{r}
+# Gerçek değerler
+test_target_variable <- test$Yipranma
+
+# Confusion Matrix oluşturma
+confusion_matrix <- table(Actual = test_target_variable, Predicted = test_predictions)
+print(confusion_matrix)
+```
+#### Doğruluk (Accuracy) hesaplama
+```{r}
+
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Accuracy:", accuracy))
+```
+#### !!!Gerçek ve tahmin edilen sınıfları kullanarak sınıflandırma raporunu oluşturmak istedim ama sürekli hata aldım ve çözemedim. test_target_variable değerinin leveli sürekli 0 çıktığı için kod çalışmamaktadır. 
+
+```{r}
+
+library(caret)
+
+#classification_report <- caret::confusionMatrix(data = test_target_variable, reference = test_predictions)
+#print(classification_report)
+```
+
+
+```{r}
+levels(test_target_variable)
+```
+```{r}
+levels(test_predictions)
+```
+
+
+
+
+
+## Hata Matrisini Görselleştirilmesi
+#### Hata matrisi oluşturarak onu görselleştirdim. Hatalı tahminler kırmızı renkte gösteriliyor ve doğru tahminler mavi renkte görüntüleniyor.
+
+```{r}
+# Hata matrisini oluşturma
+error_matrix <- matrix(ifelse(test_target_variable != test_predictions, "1", "0"), nrow = length(test_target_variable))
+
+# Hata matrisi görselleştirmesi
+library(ggplot2)
+
+df_error_matrix <- data.frame(x = rep(1:length(test_target_variable), length(test_target_variable)),
+                              y = rep(1:length(test_target_variable), each = length(test_target_variable)),
+                              error = as.vector(error_matrix))
+
+ggplot(df_error_matrix, aes(x = x, y = y, fill = error)) +
+  geom_tile(color = "white") +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red")) +
+  labs(title = "Hata Matrisi", x = "Gerçek Değerler", y = "Tahminler") +
+  theme_minimal()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
